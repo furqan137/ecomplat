@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: ecommerce-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ecommerce-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - ecommerce-network
+
+  user-service:
+    build: ./services/user-service
+    container_name: user-service
+    environment:
+      PORT: 3001
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/ecommerce-users?authSource=admin
+      JWT_SECRET: your_jwt_secret_key_here
+      JWT_REFRESH_SECRET: your_jwt_refresh_secret_here
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    networks:
+      - ecommerce-network
+
+  product-service:
+    build: ./services/product-service
+    container_name: product-service
+    environment:
+      PORT: 3002
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/ecommerce-products?authSource=admin
+      JWT_SECRET: your_jwt_secret_key_here
+    ports:
+      - "3002:3002"
+    depends_on:
+      - mongodb
+    networks:
+      - ecommerce-network
+
+  cart-service:
+    build: ./services/cart-service
+    container_name: cart-service
+    environment:
+      PORT: 3003
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/ecommerce-carts?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your_jwt_secret_key_here
+    ports:
+      - "3003:3003"
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - ecommerce-network
+
+  order-service:
+    build: ./services/order-service
+    container_name: order-service
+    environment:
+      PORT: 3004
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/ecommerce-orders?authSource=admin
+      JWT_SECRET: your_jwt_secret_key_here
+    ports:
+      - "3004:3004"
+    depends_on:
+      - mongodb
+    networks:
+      - ecommerce-network
+
+  analytics-service:
+    build: ./services/analytics-service
+    container_name: analytics-service
+    environment:
+      PORT: 3005
+      NODE_ENV: development
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/ecommerce-orders?authSource=admin
+      JWT_SECRET: your_jwt_secret_key_here
+    ports:
+      - "3005:3005"
+    depends_on:
+      - mongodb
+    networks:
+      - ecommerce-network
+
+  nginx:
+    image: nginx:latest
+    container_name: api-gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - user-service
+      - product-service
+      - cart-service
+      - order-service
+      - analytics-service
+    networks:
+      - ecommerce-network
+
+volumes:
+  mongo_data:
+
+networks:
+  ecommerce-network:
+    driver: bridge
